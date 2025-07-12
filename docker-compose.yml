@@ -1,0 +1,48 @@
+services:
+  mongodb:
+    container_name: mongodb
+    image: mongo
+    restart: always
+    ports:
+      - 27017:27017
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: rootusername # for testing
+      MONGO_INITDB_ROOT_PASSWORD: rootpassword # for testing
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    container_name: redis
+    image: redis
+    ports:
+      - 6379:6379
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
+      interval: 1s
+      timeout: 3s
+      retries: 5
+
+  api:
+    container_name: api
+    build:
+      context: .
+      dockerfile: ./cmd/server/Dockerfile
+    volumes:
+      - .:/app
+    ports:
+      - 6000:6000
+    environment:
+      MONGO_AUTH_SOURCE: admin
+      MONGO_USERNAME: rootusername
+      MONGO_PASSWORD: rootpassword
+      MONGO_URI: mongodb://mongodb
+      MONGO_DATABASE_NAME: go-token-auth
+      REDIS_ADDRESS: redis:6379
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
