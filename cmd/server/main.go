@@ -74,9 +74,16 @@ func main() {
 
 	apiRouter := app.Group("/api/v1")
 
+	// health check router
 	apiRouter.Get("/health-check", func(c *fiber.Ctx) error {
 		return c.SendString("healthy")
 	})
+
+	// user router
+	userRouter := apiRouter.Group("/users")
+	userRouter.Post("/create", deps.handler.userHandler.CreateUser)
+	userRouter.Post("/find", deps.handler.userHandler.FindUser)
+	userRouter.Get("/:id", deps.handler.userHandler.FindUserById)
 
 	app.Listen(":6000")
 }
