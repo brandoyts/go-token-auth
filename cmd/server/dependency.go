@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/brandoyts/go-token-auth/internal/auth"
 	"github.com/brandoyts/go-token-auth/internal/user"
 	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -8,6 +9,7 @@ import (
 
 type handler struct {
 	userHandler *user.Handler
+	authHandler *auth.Handler
 }
 
 type appDependency struct {

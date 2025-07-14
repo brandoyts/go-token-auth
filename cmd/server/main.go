@@ -6,6 +6,9 @@ import (
 	"log"
 	"os"
 
+	"github.com/brandoyts/go-token-auth/internal/auth"
+	"github.com/brandoyts/go-token-auth/internal/infrastructure/hash"
+	jwtauth "github.com/brandoyts/go-token-auth/internal/infrastructure/jwtAuth"
 	"github.com/brandoyts/go-token-auth/internal/infrastructure/mongodb"
 	"github.com/brandoyts/go-token-auth/internal/user"
 	"github.com/gofiber/fiber/v2"
@@ -36,9 +39,18 @@ func loadDependencies() *appDependency {
 
 	fmt.Println("✅ successfully connected to redis")
 
+	jwtAuth := jwtauth.New("secrettt")
+
+	// inject user module
 	userRepository := mongodb.NewUserRepository(db)
 	userService := user.NewService(userRepository)
 	userHandler := user.NewHandler(userService)
+
+	// inject auth module
+	hash := hash.New()
+	refreshTokenRepository := mongodb.NewRefreshTokenRepository(db)
+	authService := auth.NewService(hash, userService, jwtAuth, refreshTokenRepository)
+	authHandler := auth.NewHandler(authService)
 
 	fmt.Println("✅ dependencies are loaded successfully")
 
@@ -47,6 +59,7 @@ func loadDependencies() *appDependency {
 		redis: redisClient,
 		handler: &handler{
 			userHandler: userHandler,
+			authHandler: authHandler,
 		},
 	}
 
@@ -84,6 +97,10 @@ func main() {
 	userRouter.Post("/create", deps.handler.userHandler.CreateUser)
 	userRouter.Post("/find", deps.handler.userHandler.FindUser)
 	userRouter.Get("/:id", deps.handler.userHandler.FindUserById)
+
+	// auth router
+	authRouter := apiRouter.Group("/auth")
+	authRouter.Post("/login", deps.handler.authHandler.Login)
 
 	app.Listen(":6000")
 }
