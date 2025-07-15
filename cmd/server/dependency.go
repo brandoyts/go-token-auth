@@ -2,8 +2,9 @@ package main
 
 import (
 	"github.com/brandoyts/go-token-auth/internal/auth"
+	"github.com/brandoyts/go-token-auth/internal/infrastructure/jwtAuth"
+	"github.com/brandoyts/go-token-auth/internal/infrastructure/redisClient"
 	"github.com/brandoyts/go-token-auth/internal/user"
-	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
@@ -13,7 +14,8 @@ type handler struct {
 }
 
 type appDependency struct {
-	db      *mongo.Database
-	redis   *redis.Client
-	handler *handler
+	db          *mongo.Database
+	redis       *redisClient.RedisClient
+	jwtProvider *jwtAuth.JwtAuth
+	handler     *handler
 }

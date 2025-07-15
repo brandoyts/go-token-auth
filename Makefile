@@ -1,5 +1,5 @@
 start:
-	docker compose up --build
+	make stop && docker compose up --build
 
 stop:
-	docker compose down --volums
+	docker compose down --volumes

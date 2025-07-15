@@ -10,6 +10,7 @@ import (
 	"github.com/brandoyts/go-token-auth/internal/infrastructure/hash"
 	jwtauth "github.com/brandoyts/go-token-auth/internal/infrastructure/jwtAuth"
 	"github.com/brandoyts/go-token-auth/internal/infrastructure/mongodb"
+	"github.com/brandoyts/go-token-auth/internal/infrastructure/redisClient"
 	"github.com/brandoyts/go-token-auth/internal/user"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/logger"
@@ -19,6 +20,8 @@ import (
 )
 
 func loadDependencies() *appDependency {
+
+	// mongodb provider
 	db, err := mongodb.NewMongodb(os.Getenv("MONGO_DATABASE_NAME"), os.Getenv("MONGO_URI"), options.Credential{
 		Username: os.Getenv("MONGO_USERNAME"),
 		Password: os.Getenv("MONGO_PASSWORD"),
@@ -29,16 +32,14 @@ func loadDependencies() *appDependency {
 
 	fmt.Println("✅ successfully connected to mongodb")
 
-	redisClient := redis.NewClient(&redis.Options{
+	// redis provider
+	redisClient := redisClient.NewRedisClient(&redis.Options{
 		Addr: os.Getenv("REDIS_ADDRESS"),
 	})
-	pingErr := redisClient.Conn().Ping(context.Background()).Err()
-	if pingErr != nil {
-		log.Fatal("❌ can't connect to redis", err)
-	}
 
 	fmt.Println("✅ successfully connected to redis")
 
+	// jwt provider
 	jwtAuth := jwtauth.New("secrettt")
 
 	// inject user module
@@ -49,14 +50,15 @@ func loadDependencies() *appDependency {
 	// inject auth module
 	hash := hash.New()
 	refreshTokenRepository := mongodb.NewRefreshTokenRepository(db)
-	authService := auth.NewService(hash, userService, jwtAuth, refreshTokenRepository)
+	authService := auth.NewService(hash, userService, jwtAuth, refreshTokenRepository, redisClient)
 	authHandler := auth.NewHandler(authService)
 
 	fmt.Println("✅ dependencies are loaded successfully")
 
 	return &appDependency{
-		db:    db,
-		redis: redisClient,
+		db:          db,
+		redis:       redisClient,
+		jwtProvider: jwtAuth,
 		handler: &handler{
 			userHandler: userHandler,
 			authHandler: authHandler,
@@ -80,7 +82,6 @@ func main() {
 	}()
 
 	// gracefully close redis connection
-	defer deps.redis.Close()
 
 	app := fiber.New()
 	app.Use(logger.New(), recover.New())
@@ -101,6 +102,8 @@ func main() {
 	// auth router
 	authRouter := apiRouter.Group("/auth")
 	authRouter.Post("/login", deps.handler.authHandler.Login)
+	authRouter.Post("/refresh-token", deps.handler.authHandler.RefreshToken)
+	authRouter.Post("/logout", authChecker(deps.redis, deps.jwtProvider), deps.handler.authHandler.Logout)
 
 	app.Listen(":6000")
 }

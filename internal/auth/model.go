@@ -8,8 +8,10 @@ import (
 
 type RefreshToken struct {
 	ID        string    `bson:"_id,omitempty"`
-	IsRevoked bool      `bson:"is_revoked"`
-	Token     string    `bson:"token,omitempty"`
+	UserID    string    `bson:"user_id,omitempty"`
+	IPAddress string    `bson:"ip_address,omitempty"`
+	Revoked   bool      `bson:"revoked,omitempty"`
+	TokenHash string    `bson:"token_hash,omitempty"`
 	TTL       time.Time `bson:"ttl,omitempty"`
 }
 
