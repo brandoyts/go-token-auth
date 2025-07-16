@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"log"
 	"os"
@@ -34,9 +35,10 @@ func loadDependencies() *appDependency {
 
 	// redis provider
 	redisClient := redisClient.NewRedisClient(&redis.Options{
-		Addr:     os.Getenv("REDIS_ADDRESS"),
-		Username: os.Getenv("REDIS_USERNAME"),
-		Password: os.Getenv("REDIS_PASSWORD"),
+		Addr:      os.Getenv("REDIS_ADDRESS"),
+		Username:  os.Getenv("REDIS_USERNAME"),
+		Password:  os.Getenv("REDIS_PASSWORD"),
+		TLSConfig: &tls.Config{},
 	})
 
 	fmt.Println("✅ successfully connected to redis")
