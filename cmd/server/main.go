@@ -35,6 +35,7 @@ func loadDependencies() *appDependency {
 	// redis provider
 	redisClient := redisClient.NewRedisClient(&redis.Options{
 		Addr:     os.Getenv("REDIS_ADDRESS"),
+		Username: os.Getenv("REDIS_USERNAME"),
 		Password: os.Getenv("REDIS_PASSWORD"),
 	})
 
