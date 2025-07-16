@@ -34,7 +34,8 @@ func loadDependencies() *appDependency {
 
 	// redis provider
 	redisClient := redisClient.NewRedisClient(&redis.Options{
-		Addr: os.Getenv("REDIS_ADDRESS"),
+		Addr:     os.Getenv("REDIS_ADDRESS"),
+		Password: os.Getenv("REDIS_PASSWORD"),
 	})
 
 	fmt.Println("✅ successfully connected to redis")
