@@ -16,7 +16,7 @@ func NewMongodb(database string, uri string, credentials options.Credential) (*m
 		return nil, err
 	}
 
-	err = client.Ping(context.Background(), &readpref.ReadPref{})
+	err = client.Ping(context.Background(), readpref.Primary())
 	if err != nil {
 		return nil, err
 	}
