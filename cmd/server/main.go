@@ -86,6 +86,10 @@ func main() {
 	app := fiber.New()
 	app.Use(logger.New(), recover.New())
 
+	app.Get("/kaithheathcheck", func(c *fiber.Ctx) error {
+		return c.SendStatus(200)
+	})
+
 	apiRouter := app.Group("/api/v1")
 
 	// health check router
