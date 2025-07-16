@@ -94,6 +94,10 @@ func main() {
 		return c.SendStatus(200)
 	})
 
+	app.Get("/kaithhealthcheck ", func(c *fiber.Ctx) error {
+		return c.SendStatus(200)
+	})
+
 	apiRouter := app.Group("/api/v1")
 
 	// health check router
