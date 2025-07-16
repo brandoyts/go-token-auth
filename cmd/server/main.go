@@ -86,7 +86,7 @@ func main() {
 	app := fiber.New()
 	app.Use(logger.New(), recover.New())
 
-	app.Get("/kaithheathcheck", func(c *fiber.Ctx) error {
+	app.Get("/ping", func(c *fiber.Ctx) error {
 		return c.SendStatus(200)
 	})
 
