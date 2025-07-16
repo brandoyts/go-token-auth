@@ -109,5 +109,6 @@ func main() {
 	authRouter.Post("/refresh-token", deps.handler.authHandler.RefreshToken)
 	authRouter.Post("/logout", authChecker(deps.redis, deps.jwtProvider), deps.handler.authHandler.Logout)
 
+	fmt.Println("server is listening on port 8080")
 	app.Listen(":8080")
 }
