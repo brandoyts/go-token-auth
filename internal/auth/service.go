@@ -4,8 +4,9 @@ import (
 	"context"
 	"errors"
 	"log"
+	"os"
+	"time"
 
-	"github.com/brandoyts/go-token-auth/internal/shared"
 	"github.com/brandoyts/go-token-auth/internal/user"
 )
 
@@ -59,22 +60,27 @@ func (s *Service) Login(ctx context.Context, in LoginInput) (*AuthToken, error) 
 	// compare hashed password against login password
 	err = s.hash.Compare(user.Password, in.Password)
 	if err != nil {
-		log.Fatal(err)
 		return nil, errors.New(invalidCredentials)
 	}
 
 	// generate access token
-	accessToken, err := s.token.Generate(shared.TOKEN_TYPE_ACCESS, user.ID)
+	accessToken, err := s.token.Generate(user.ID, os.Getenv("ACCESS_TOKEN_TTL"))
 	if err != nil {
-		log.Fatal(err)
 		return nil, err
 	}
 
 	// generate refresh token
-	refreshToken, err := s.token.Generate(shared.TOKEN_TYPE_REFRESH, "")
+	refreshToken, err := s.token.Generate(user.ID, os.Getenv("REFRESH_TOKEN_TTL"))
 	if err != nil {
 		return nil, err
 	}
+
+	ttlDuration, err := time.ParseDuration(os.Getenv("REFRESH_TOKEN_TTL"))
+	if err != nil {
+		return nil, err
+	}
+
+	ttl := time.Now().Add(ttlDuration)
 
 	// store refresh token to db
 	_, err = s.refreshTokenRepository.Create(ctx, RefreshToken{
@@ -82,9 +88,9 @@ func (s *Service) Login(ctx context.Context, in LoginInput) (*AuthToken, error) 
 		IPAddress: in.IPAddress,
 		TokenHash: refreshToken,
 		Revoked:   false,
+		TTL:       ttl,
 	})
 	if err != nil {
-		log.Fatal(err)
 		return nil, err
 	}
 
@@ -98,7 +104,6 @@ func (s *Service) RefreshToken(ctx context.Context, in RefreshTokenInput) (*Auth
 	// query refresh token from db
 	oldRefreshToken, err := s.refreshTokenRepository.FindOne(ctx, RefreshToken{TokenHash: in.RefreshToken})
 	if err != nil {
-		log.Fatal(err)
 		return nil, err
 	}
 
@@ -113,43 +118,66 @@ func (s *Service) RefreshToken(ctx context.Context, in RefreshTokenInput) (*Auth
 
 	// check request ip address if it match to old refresh token
 	if in.IPAddress != oldRefreshToken.IPAddress {
-		return nil, errors.New("suspicious!")
+		return nil, errors.New("suspicious")
 	}
+
+	userId := oldRefreshToken.UserID
 
 	// mark old refresh token as revoked
 	oldRefreshToken.Revoked = true
 	err = s.refreshTokenRepository.Update(ctx, oldRefreshToken.ID, *oldRefreshToken)
 	if err != nil {
-		log.Fatal(err)
 		return nil, err
 	}
 
 	// generate new access token
-	newAccessToken, err := s.token.Generate(shared.TOKEN_TYPE_ACCESS, "")
+	newAccessToken, err := s.token.Generate(userId, os.Getenv("ACCESS_TOKEN_TTL"))
 	if err != nil {
 		return nil, err
 	}
 
 	// generate new refresh token
-	newRefreshToken, err := s.token.Generate(shared.TOKEN_TYPE_REFRESH, "")
+	newRefreshToken, err := s.token.Generate(userId, os.Getenv("REFRESH_TOKEN_TTL"))
 	if err != nil {
 		return nil, err
 	}
 
+	ttlDuration, err := time.ParseDuration(os.Getenv("REFRESH_TOKEN_TTL"))
+	if err != nil {
+		return nil, err
+	}
+
+	ttl := time.Now().Add(ttlDuration)
+
 	// save new refresh token to db
 	_, err = s.refreshTokenRepository.Create(ctx, RefreshToken{
-		UserID:    oldRefreshToken.UserID,
+		UserID:    userId,
 		IPAddress: in.IPAddress,
 		Revoked:   false,
 		TokenHash: newRefreshToken,
+		TTL:       ttl,
 	})
 	if err != nil {
 		log.Fatal(err)
 		return nil, err
 	}
 
+	oldAccessToken, err := s.token.GetClaims(in.AccessToken)
+	if err != nil {
+		return nil, err
+	}
+
+	oldAccessTokenExpiration, err := oldAccessToken.GetExpirationTime()
+	if err != nil {
+		return nil, err
+	}
+
+	cacheTtl := computeCacheExpiration(oldAccessTokenExpiration.Time)
+
+	cacheTtlDuration := time.Until(cacheTtl).String()
+
 	// blacklist old access token
-	err = s.cache.Set(in.AccessToken, in.AccessToken, "1h")
+	err = s.cache.Set(in.AccessToken, in.AccessToken, cacheTtlDuration)
 	if err != nil {
 		return nil, err
 	}
@@ -186,6 +214,31 @@ func (s *Service) Logout(ctx context.Context, accessToken string, refreshToken s
 		return nil
 	}
 
+	oldAccessToken, err := s.token.GetClaims(accessToken)
+	if err != nil {
+		return err
+	}
+
+	oldAccessTokenExpiration, err := oldAccessToken.GetExpirationTime()
+	if err != nil {
+		return err
+	}
+
+	cacheTtl := computeCacheExpiration(oldAccessTokenExpiration.Time)
+
+	cacheTtlDuration := time.Until(cacheTtl).String()
+
 	// blacklist access token
-	return s.cache.Set(accessToken, accessToken, "1h")
+	return s.cache.Set(accessToken, accessToken, cacheTtlDuration)
+}
+
+func computeCacheExpiration(tokenTtl time.Time) time.Time {
+	buffer := 30 * time.Second
+	exp := tokenTtl.Add(-buffer)
+
+	if exp.Before(time.Now()) {
+		return time.Now().Add(buffer)
+	}
+
+	return exp
 }

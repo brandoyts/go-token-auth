@@ -1,6 +1,10 @@
 package auth
 
-import "context"
+import (
+	"context"
+
+	"github.com/golang-jwt/jwt/v5"
+)
 
 type DBInterface interface {
 	Create(ctx context.Context, model RefreshToken) (string, error)
@@ -20,6 +24,7 @@ type Hash interface {
 }
 
 type Token interface {
-	Generate(tokenType string, id string) (string, error)
+	Generate(id string, ttl string) (string, error)
 	Verify(tokenString string) error
+	GetClaims(tokenString string) (jwt.Claims, error)
 }

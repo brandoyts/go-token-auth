@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -73,6 +74,7 @@ func (h *Handler) RefreshToken(c *fiber.Ctx) error {
 		AccessToken:  accessToken,
 	})
 	if err != nil {
+		fmt.Println(err)
 		return c.SendStatus(http.StatusUnauthorized)
 	}
 
