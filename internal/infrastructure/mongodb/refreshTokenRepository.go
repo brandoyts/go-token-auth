@@ -2,10 +2,14 @@ package mongodb
 
 import (
 	"context"
+	"log"
+	"os"
+	"time"
 
 	"github.com/brandoyts/go-token-auth/internal/auth"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 type RefreshTokenRepository struct {
@@ -13,6 +17,27 @@ type RefreshTokenRepository struct {
 }
 
 func NewRefreshTokenRepository(db *mongo.Database) *RefreshTokenRepository {
+
+	ttl := os.Getenv("REFRESH_TOKEN_TTL")
+	duration, err := time.ParseDuration(ttl)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	durationInSeconds := int32(duration.Seconds())
+
+	indexModel := mongo.IndexModel{
+		Keys:    bson.D{{Key: "ttl", Value: 1}},
+		Options: options.Index().SetExpireAfterSeconds(durationInSeconds),
+	}
+
+	collection := db.Collection("refresh_tokens")
+
+	_, err = collection.Indexes().CreateOne(context.TODO(), indexModel)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	return &RefreshTokenRepository{
 		collection: db.Collection("refresh_tokens"),
 	}
