@@ -6,8 +6,8 @@ services:
     ports:
       - 27017:27017
     environment:
-      MONGO_INITDB_ROOT_USERNAME: rootusername # for testing
-      MONGO_INITDB_ROOT_PASSWORD: rootpassword # for testing
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 10s
@@ -33,14 +33,17 @@ services:
     volumes:
       - .:/app
     ports:
-      - 6000:6000
+      - ${PORT}:${PORT}
     environment:
-      MONGO_AUTH_SOURCE: admin
-      MONGO_USERNAME: rootusername
-      MONGO_PASSWORD: rootpassword
+      JWT_SECRET: ${JWT_SECRET}
+      ACCESS_TOKEN_TTL: ${ACCESS_TOKEN_TTL}
+      REFRESH_TOKEN_TTL: ${REFRESH_TOKEN_TTL}
+      MONGO_USERNAME: ${MONGO_USERNAME}
+      MONGO_PASSWORD: ${MONGO_PASSWORD}
       MONGO_URI: mongodb://mongodb
       MONGO_DATABASE_NAME: go-token-auth
       REDIS_ADDRESS: redis:6379
+      REDIS_SSL: ${REDIS_SSL}
     depends_on:
       mongodb:
         condition: service_healthy

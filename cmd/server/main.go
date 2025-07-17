@@ -9,7 +9,7 @@ import (
 
 	"github.com/brandoyts/go-token-auth/internal/auth"
 	"github.com/brandoyts/go-token-auth/internal/infrastructure/hash"
-	jwtauth "github.com/brandoyts/go-token-auth/internal/infrastructure/jwtAuth"
+	"github.com/brandoyts/go-token-auth/internal/infrastructure/jwtAuth"
 	"github.com/brandoyts/go-token-auth/internal/infrastructure/mongodb"
 	"github.com/brandoyts/go-token-auth/internal/infrastructure/redisClient"
 	"github.com/brandoyts/go-token-auth/internal/user"
@@ -22,7 +22,7 @@ import (
 
 func loadDependencies() *appDependency {
 
-	// mongodb provider
+	// mongodb
 	db, err := mongodb.NewMongodb(os.Getenv("MONGO_DATABASE_NAME"), os.Getenv("MONGO_URI"), options.Credential{
 		Username: os.Getenv("MONGO_USERNAME"),
 		Password: os.Getenv("MONGO_PASSWORD"),
@@ -33,18 +33,24 @@ func loadDependencies() *appDependency {
 
 	fmt.Println("✅ successfully connected to mongodb")
 
-	// redis provider
+	var tlsConfig *tls.Config
+
+	if os.Getenv("REDIS_SSL") == "" {
+		tlsConfig = nil
+	}
+
+	// redis
 	redisClient := redisClient.NewRedisClient(&redis.Options{
 		Addr:      os.Getenv("REDIS_ADDRESS"),
 		Username:  os.Getenv("REDIS_USERNAME"),
 		Password:  os.Getenv("REDIS_PASSWORD"),
-		TLSConfig: &tls.Config{},
+		TLSConfig: tlsConfig,
 	})
 
 	fmt.Println("✅ successfully connected to redis")
 
-	// jwt provider
-	jwtAuth := jwtauth.New("secrettt")
+	// jwt
+	jwtProvider := jwtAuth.New(os.Getenv("JWT_SECRET"))
 
 	// inject user module
 	userRepository := mongodb.NewUserRepository(db)
@@ -54,7 +60,7 @@ func loadDependencies() *appDependency {
 	// inject auth module
 	hash := hash.New()
 	refreshTokenRepository := mongodb.NewRefreshTokenRepository(db)
-	authService := auth.NewService(hash, userService, jwtAuth, refreshTokenRepository, redisClient)
+	authService := auth.NewService(hash, userService, jwtProvider, refreshTokenRepository, redisClient)
 	authHandler := auth.NewHandler(authService)
 
 	fmt.Println("✅ dependencies are loaded successfully")
@@ -62,7 +68,7 @@ func loadDependencies() *appDependency {
 	return &appDependency{
 		db:          db,
 		redis:       redisClient,
-		jwtProvider: jwtAuth,
+		jwtProvider: jwtProvider,
 		handler: &handler{
 			userHandler: userHandler,
 			authHandler: authHandler,
@@ -94,16 +100,7 @@ func main() {
 		return c.SendStatus(200)
 	})
 
-	app.Get("/kaithhealthcheck ", func(c *fiber.Ctx) error {
-		return c.SendStatus(200)
-	})
-
 	apiRouter := app.Group("/api/v1")
-
-	// health check router
-	apiRouter.Get("/health-check", func(c *fiber.Ctx) error {
-		return c.SendString("healthy")
-	})
 
 	// user router
 	userRouter := apiRouter.Group("/users")
@@ -118,5 +115,11 @@ func main() {
 	authRouter.Post("/logout", authChecker(deps.redis, deps.jwtProvider), deps.handler.authHandler.Logout)
 
 	fmt.Println("server is listening on port 8080")
-	app.Listen(":8080")
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8090"
+	}
+
+	app.Listen(fmt.Sprintf(":%v", port))
 }

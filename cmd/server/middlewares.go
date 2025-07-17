@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 
@@ -31,14 +30,13 @@ func authChecker(redisClient *redisClient.RedisClient, jwtAuth *jwtAuth.JwtAuth)
 		err := jwtAuth.Verify(accessToken)
 		if err != nil {
 			fmt.Println(err)
-			log.Fatal(err)
 			return c.SendStatus(http.StatusUnauthorized)
 		}
 
 		// check if token is blacklisted
 		cache, err := redisClient.Get(accessToken)
 		if err != nil {
-			log.Fatal(err)
+			fmt.Println(err)
 			return c.SendStatus(http.StatusUnauthorized)
 		}
 
