@@ -1,7 +1,7 @@
 package jwtAuth
 
 import (
-	"fmt"
+	"errors"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -11,26 +11,41 @@ type JwtAuth struct {
 	secret []byte
 }
 
+const (
+	defaultSecretKey = "default-secret-key"
+	empty            = ""
+)
+
+// error related constants
+const (
+	ErrParseJwt   = "error parsing jwt"
+	ErrInvalidJwt = "invalid jwt"
+)
+
 func New(secret string) *JwtAuth {
 	if secret == "" {
-		secret = "default-secret-key"
+		secret = defaultSecretKey
 	}
 
 	return &JwtAuth{secret: []byte(secret)}
 }
 
-func (ja *JwtAuth) Generate(tokenType string, id string) (string, error) {
+func (ja *JwtAuth) Generate(id string, ttl string) (string, error) {
+	expiry, err := time.ParseDuration(ttl)
+	if err != nil {
+		return empty, err
+	}
+
 	claims := jwt.MapClaims{
-		"token_type": tokenType,
-		"id":         id,
-		"exp":        time.Now().Add(time.Hour * 24).Unix(),
+		"sub": id,
+		"exp": time.Now().Add(expiry).Unix(),
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 
 	tokenString, err := token.SignedString(ja.secret)
 	if err != nil {
-		return "", err
+		return empty, err
 	}
 
 	return tokenString, nil
@@ -39,7 +54,7 @@ func (ja *JwtAuth) Generate(tokenType string, id string) (string, error) {
 func (ja *JwtAuth) Verify(tokenString string) error {
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("There was an error")
+			return nil, errors.New(ErrParseJwt)
 		}
 		return ja.secret, nil
 	})
@@ -49,8 +64,23 @@ func (ja *JwtAuth) Verify(tokenString string) error {
 	}
 
 	if !token.Valid {
-		return fmt.Errorf("invalid token")
+		return errors.New(ErrInvalidJwt)
 	}
 
 	return nil
+}
+
+func (ja *JwtAuth) GetClaims(tokenString string) (jwt.Claims, error) {
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, errors.New(ErrParseJwt)
+		}
+		return ja.secret, nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return token.Claims, nil
 }
